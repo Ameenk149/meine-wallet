@@ -1,0 +1,15 @@
+{
+  "originHash" : "a16211764fc8e0b318df9107918f9e410cb59e413ac7b39a359229781998c717",
+  "pins" : [
+    {
+      "identity" : "multipaz",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/openwallet-foundation/multipaz",
+      "state" : {
+        "revision" : "e9a2dd0d0215bf764d0cc89ede3bb9d43d7f75e7",
+        "version" : "0.97.0"
+      }
+    }
+  ],
+  "version" : 3
+}
