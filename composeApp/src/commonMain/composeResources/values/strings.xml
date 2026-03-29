@@ -16,6 +16,7 @@
     <string name="no_documents_added">No documents added yet</string>
     <string name="add_document_hint">Add a document from issuer.multipaz.org</string>
     <string name="carousel_drag_to_reader">Drag to reorder</string>
+    <string name="open_logs">Open logs</string>
 
     <!-- DocumentViewerScreen -->
     <string name="hold_to_reader">Hold to reader</string>
