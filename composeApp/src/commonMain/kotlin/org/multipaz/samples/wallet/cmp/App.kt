@@ -27,6 +27,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import meinewallet.composeapp.generated.resources.Res
@@ -40,6 +41,7 @@ import org.multipaz.digitalcredentials.DigitalCredentials
 import org.multipaz.digitalcredentials.getDefault
 import org.multipaz.document.DocumentStore
 import org.multipaz.document.buildDocumentStore
+import org.multipaz.eventlogger.SimpleEventLogger
 import org.multipaz.documenttype.DocumentTypeRepository
 import org.multipaz.documenttype.knowntypes.AgeVerification
 import org.multipaz.documenttype.knowntypes.DrivingLicense
@@ -59,6 +61,9 @@ import org.multipaz.presentment.SimplePresentmentSource
 import org.multipaz.presentment.uriSchemePresentment
 import org.multipaz.provisioning.DocumentProvisioningHandler
 import org.multipaz.provisioning.ProvisioningModel
+import kotlinx.coroutines.flow.collect
+import org.multipaz.samples.wallet.cmp.activity.IssuanceActivityStore
+import org.multipaz.samples.wallet.cmp.logging.AppLogCollector
 import org.multipaz.samples.wallet.cmp.navhost.AppNavHost
 import org.multipaz.securearea.SecureArea
 import org.multipaz.securearea.SecureAreaRepository
@@ -84,6 +89,8 @@ class App() {
     lateinit var documentStore: DocumentStore
     lateinit var documentModel: DocumentModel
     lateinit var readerTrustManager: TrustManager
+    lateinit var activityEventLogger: SimpleEventLogger
+    lateinit var issuanceActivityStore: IssuanceActivityStore
     lateinit var presentmentSource: PresentmentSource
     lateinit var provisioningModel: ProvisioningModel
     lateinit var provisioningSupport: ProvisioningSupport
@@ -100,6 +107,7 @@ class App() {
             if (initialized) {
                 return
             }
+            AppLogCollector.install()
             storage = AppPlatform.storage
             secureArea = Platform.getSecureArea(storage)
             secureAreaRepository = SecureAreaRepository.Builder().add(secureArea).build()
@@ -118,6 +126,8 @@ class App() {
                 addDocumentType(UtopiaNaturalization.getDocumentType())
             }
             documentStore = buildDocumentStore(storage = storage, secureAreaRepository = secureAreaRepository) {}
+            activityEventLogger = SimpleEventLogger(storage = storage)
+            issuanceActivityStore = IssuanceActivityStore(storage = storage)
             documentModel = DocumentModel.create(
                 documentStore = documentStore,
                 documentTypeRepository = documentTypeRepository
@@ -209,6 +219,7 @@ class App() {
                 documentStore = documentStore,
                 documentTypeRepository = documentTypeRepository,
                 zkSystemRepository = zkSystemRepository,
+                eventLogger = activityEventLogger,
                 resolveTrustFn = { requester ->
                     requester.certChain?.let { certChain ->
                         val trustResult = readerTrustManager.verify(chain = certChain.certificates)
@@ -260,15 +271,29 @@ class App() {
                     documentStore = documentStore,
                     secureArea = secureArea
                 ),
-                httpClient = HttpClient(AppPlatform.httpClientEngineFactory) {
-                    followRedirects = false
-                },
+                httpClient = createProvisioningHttpClient(
+                    AppPlatform.httpClientEngineFactory,
+                    issuanceActivityStore,
+                ),
                 promptModel = promptModel,
                 authorizationSecureArea = secureArea
             )
             provisioningSupport = ProvisioningSupport()
             provisioningSupport.init()
             settingsModel = SettingsModel.create(storage)
+
+            CoroutineScope(Dispatchers.Default).launch {
+                var prev = provisioningModel.state.value
+                provisioningModel.state.collect { state ->
+                    issuanceActivityStore.onProvisioningState(prev, state)
+                    prev = state
+                }
+            }
+            CoroutineScope(Dispatchers.Default).launch {
+                documentStore.eventFlow.collect { event ->
+                    issuanceActivityStore.onDocumentEvent(event)
+                }
+            }
 
             initialized = true
         }
@@ -335,6 +360,9 @@ class App() {
             val queryIndex = url.indexOf('?')
             if (queryIndex >= 0) {
                 try {
+                    runBlocking {
+                        issuanceActivityStore.prepareOfferForIssuance(url)
+                    }
                     provisioningModel.launchOpenID4VCIProvisioning(
                         offerUri = url,
                         clientPreferences = provisioningSupport.preferences,

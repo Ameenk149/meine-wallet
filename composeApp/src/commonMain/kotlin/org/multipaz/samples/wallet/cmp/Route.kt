@@ -24,4 +24,16 @@ sealed interface WalletRoute {
 
     @Serializable
     data class PersonalIdInfo(val documentId: String) : WalletRoute
+
+    @Serializable
+    data object AppLogs : WalletRoute
+
+    @Serializable
+    data object Activity : WalletRoute
+
+    @Serializable
+    data class ActivityEventDetail(val eventId: String) : WalletRoute
+
+    @Serializable
+    data class ActivityIssuanceDetail(val recordId: String) : WalletRoute
 }

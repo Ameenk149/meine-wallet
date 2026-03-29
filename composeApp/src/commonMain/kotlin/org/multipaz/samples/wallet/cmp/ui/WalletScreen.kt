@@ -47,7 +47,7 @@ import meinewallet.composeapp.generated.resources.app_name
 import meinewallet.composeapp.generated.resources.carousel_drag_to_reader
 import meinewallet.composeapp.generated.resources.hold_to_reader
 import meinewallet.composeapp.generated.resources.no_documents_added
-import meinewallet.composeapp.generated.resources.open_logs
+import meinewallet.composeapp.generated.resources.activity
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.multipaz.compose.document.DocumentCarousel
@@ -64,7 +64,7 @@ fun WalletScreen(
     documentModel: DocumentModel,
     settingsModel: SettingsModel,
     onDocumentSelected: (DocumentInfo) -> Unit,
-    onOpenLogs: () -> Unit = {},
+    onActivity: () -> Unit = {},
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -89,8 +89,8 @@ fun WalletScreen(
                     )
                 },
                 actions = {
-                    TextButton(onClick = onOpenLogs) {
-                        Text(stringResource(Res.string.open_logs))
+                    TextButton(onClick = onActivity) {
+                        Text(stringResource(Res.string.activity))
                     }
                 },
             )
