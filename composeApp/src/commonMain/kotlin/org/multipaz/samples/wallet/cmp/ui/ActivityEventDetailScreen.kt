@@ -16,6 +16,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -28,8 +29,12 @@ import meinewallet.composeapp.generated.resources.back
 import org.jetbrains.compose.resources.stringResource
 import org.multipaz.eventlogger.Event
 import org.multipaz.eventlogger.SimpleEventLogger
+import org.multipaz.samples.wallet.cmp.activity.elideActivityEventBodyForDisplay
 import org.multipaz.samples.wallet.cmp.activity.formatDetailText
 import org.multipaz.samples.wallet.cmp.activity.summaryTitle
+import org.multipaz.util.Logger
+
+private const val TAG = "ActivityEventDetail"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,7 +47,13 @@ fun ActivityEventDetailScreen(
 
     LaunchedEffect(eventId, eventLogger) {
         suspend fun load() {
-            event = eventLogger.getEvents().find { it.identifier == eventId }
+            try {
+                val events = eventLogger.getEvents()
+                event = events.find { it.identifier == eventId }
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to load activity events", e)
+                event = null
+            }
         }
         load()
         eventLogger.eventFlow.collect {
@@ -54,9 +65,15 @@ fun ActivityEventDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
+                    val titleText = when (val ev = event) {
+                        null -> stringResource(Res.string.activity_detail_missing)
+                        else -> runCatching { ev.summaryTitle() }.getOrElse { err ->
+                            Logger.w(TAG, "summaryTitle failed for ${ev::class.simpleName}: ${err.message}")
+                            stringResource(Res.string.activity_detail_missing)
+                        }
+                    }
                     Text(
-                        text = event?.summaryTitle()
-                            ?: stringResource(Res.string.activity_detail_missing),
+                        text = titleText,
                         maxLines = 1,
                     )
                 },
@@ -71,22 +88,32 @@ fun ActivityEventDetailScreen(
             )
         },
     ) { padding ->
-        val scroll = rememberScrollState()
         when (val e = event) {
             null -> Text(
                 text = stringResource(Res.string.activity_detail_missing),
                 modifier = Modifier.padding(padding).padding(24.dp),
             )
-            else -> Text(
-                text = e.formatDetailText(),
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .verticalScroll(scroll),
-            )
+            else -> key(e.identifier) {
+                val scroll = rememberScrollState()
+                val body = runCatching { e.formatDetailText() }.getOrElse { err ->
+                    Logger.w(TAG, "formatDetailText failed: ${err.message}")
+                    buildString {
+                        appendLine("Could not render this activity event.")
+                        appendLine()
+                        appendLine(err.message ?: err.toString())
+                    }
+                }
+                Text(
+                    text = elideActivityEventBodyForDisplay(body),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .verticalScroll(scroll),
+                )
+            }
         }
     }
 }

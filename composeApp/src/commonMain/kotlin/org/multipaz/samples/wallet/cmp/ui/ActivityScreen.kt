@@ -138,14 +138,16 @@ fun ActivityScreen(
                             ListItem(
                                 headlineContent = {
                                     Text(
-                                        text = event.summaryTitle(),
+                                        text = runCatching { event.summaryTitle() }
+                                            .getOrElse { "Presentation" },
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                 },
                                 supportingContent = {
                                     Text(
-                                        text = event.summarySubtitle(),
+                                        text = runCatching { event.summarySubtitle() }
+                                            .getOrElse { "—" },
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis,

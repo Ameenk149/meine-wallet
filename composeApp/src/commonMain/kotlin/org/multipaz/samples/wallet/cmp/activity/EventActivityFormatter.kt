@@ -12,12 +12,29 @@ import org.multipaz.eventlogger.EventPresentmentIso18013AnnexA
 import org.multipaz.eventlogger.EventPresentmentIso18013Proximity
 import org.multipaz.eventlogger.EventPresentmentUriSchemeOpenID4VP
 
-private fun DataItem.toDiagnosticsString(): String {
+/** Keeps each heavy section bounded so building the full detail string does not OOM the app. */
+private const val MAX_DETAIL_SECTION_CHARS = 56_000
+
+private fun String.elideDetailSection(): String {
+    if (length <= MAX_DETAIL_SECTION_CHARS) return this
+    val omitted = length - MAX_DETAIL_SECTION_CHARS
+    return take(MAX_DETAIL_SECTION_CHARS) + "\n… ($omitted characters omitted) …\n"
+}
+
+private fun DataItem.toDiagnosticsString(): String = try {
     val encoded = Cbor.encode(this)
-    return Cbor.toDiagnostics(
+    Cbor.toDiagnostics(
         encoded,
         setOf(DiagnosticOption.PRETTY_PRINT, DiagnosticOption.EMBEDDED_CBOR),
-    )
+    ).elideDetailSection()
+} catch (e: Throwable) {
+    "(CBOR diagnostic failed: ${e.message ?: e::class.simpleName})"
+}
+
+private fun EventPresentmentData.tryFormatOverview(): String = try {
+    formatOverview().elideDetailSection()
+} catch (e: Throwable) {
+    "(Request summary failed: ${e.message ?: e::class.simpleName})"
 }
 
 private fun EventPresentmentData.formatOverview(): String = buildString {
@@ -61,7 +78,7 @@ fun Event.formatDetailText(): String = when (this) {
         appendLine("Time: $timestamp")
         appendLine()
         appendLine("=== Requester / request summary ===")
-        appendLine(presentmentData.formatOverview())
+        appendLine(presentmentData.tryFormatOverview())
         appendLine()
         appendLine("=== Request (CBOR diagnostic) ===")
         appendLine(request.toDiagnosticsString())
@@ -76,12 +93,12 @@ fun Event.formatDetailText(): String = when (this) {
         appendLine("=== Overview ===")
         appendLine("Type: ISO/IEC 18013-7 Annex A")
         appendLine("Time: $timestamp")
-        appendLine("URI: $uri")
+        appendLine("URI: ${uri.elideDetailSection()}")
         appendLine("App ID: ${appId ?: "—"}")
         appendLine("Origin: ${origin ?: "—"}")
         appendLine()
         appendLine("=== Requester / request summary ===")
-        appendLine(presentmentData.formatOverview())
+        appendLine(presentmentData.tryFormatOverview())
         appendLine()
         appendLine("=== Request (CBOR diagnostic) ===")
         appendLine(request.toDiagnosticsString())
@@ -99,58 +116,67 @@ fun Event.formatDetailText(): String = when (this) {
         appendLine("=== Overview ===")
         appendLine("Type: OpenID4VP via URI scheme")
         appendLine("Time: $timestamp")
-        appendLine("URI: $uri")
+        appendLine("URI: ${uri.elideDetailSection()}")
         appendLine("App ID: ${appId ?: "—"}")
         appendLine("Origin: ${origin ?: "—"}")
-        appendLine("Redirect URI: $redirectUri")
+        appendLine("Redirect URI: ${redirectUri.elideDetailSection()}")
         appendLine()
         appendLine("=== Requester / request summary ===")
-        appendLine(presentmentData.formatOverview())
+        appendLine(presentmentData.tryFormatOverview())
         appendLine()
         appendLine("=== Authorization request JWT ===")
-        appendLine(requestJwt)
+        appendLine(requestJwt.elideDetailSection())
         appendLine()
         appendLine("=== VP token ===")
-        appendLine(vpToken)
+        appendLine(vpToken.elideDetailSection())
     }
     is EventPresentmentDigitalCredentialsOpenID4VP -> buildString {
         appendLine("=== Overview ===")
         appendLine("Type: OpenID4VP via W3C Digital Credentials API")
         appendLine("Time: $timestamp")
         appendLine("App ID: ${appId ?: "—"}")
-        appendLine("Origin: $origin")
-        appendLine("Protocol: $protocol")
+        appendLine("Origin: ${origin.elideDetailSection()}")
+        appendLine("Protocol: ${protocol.elideDetailSection()}")
         appendLine()
         appendLine("=== Requester / request summary ===")
-        appendLine(presentmentData.formatOverview())
+        appendLine(presentmentData.tryFormatOverview())
         appendLine()
         appendLine("=== DC API request (JSON) ===")
-        appendLine(requestJson)
+        appendLine(requestJson.elideDetailSection())
         appendLine()
         appendLine("=== DC API response (JSON) ===")
-        appendLine(responseJson)
+        appendLine(responseJson.elideDetailSection())
         appendLine()
         appendLine("=== VP token ===")
-        appendLine(vpToken)
+        appendLine(vpToken.elideDetailSection())
     }
     is EventPresentmentDigitalCredentialsMdocApi -> buildString {
         appendLine("=== Overview ===")
         appendLine("Type: ISO mdoc via Digital Credentials API")
         appendLine("Time: $timestamp")
         appendLine("App ID: ${appId ?: "—"}")
-        appendLine("Origin: $origin")
-        appendLine("Protocol: $protocol")
+        appendLine("Origin: ${origin.elideDetailSection()}")
+        appendLine("Protocol: ${protocol.elideDetailSection()}")
         appendLine()
         appendLine("=== Requester / request summary ===")
-        appendLine(presentmentData.formatOverview())
+        appendLine(presentmentData.tryFormatOverview())
         appendLine()
         appendLine("=== DC API request (JSON) ===")
-        appendLine(requestJson)
+        appendLine(requestJson.elideDetailSection())
         appendLine()
         appendLine("=== DC API response (JSON) ===")
-        appendLine(responseJson)
+        appendLine(responseJson.elideDetailSection())
         appendLine()
         appendLine("=== Device response (CBOR diagnostic) ===")
         appendLine(deviceResponse.toDiagnosticsString())
     }
+}
+
+/** Caps full detail string size before showing it in a single scrollable text block. */
+private const val MAX_ACTIVITY_EVENT_DISPLAY_CHARS = 360_000
+
+fun elideActivityEventBodyForDisplay(body: String): String {
+    if (body.length <= MAX_ACTIVITY_EVENT_DISPLAY_CHARS) return body
+    return body.take(MAX_ACTIVITY_EVENT_DISPLAY_CHARS) +
+        "\n\n[… truncated for display: ${body.length} characters total …]"
 }
