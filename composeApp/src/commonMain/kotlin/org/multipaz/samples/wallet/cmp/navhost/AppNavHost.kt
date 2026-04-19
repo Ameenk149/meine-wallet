@@ -49,6 +49,8 @@ fun AppNavHost(
                 promptModel = App.promptModel,
                 presentmentSource = app.presentmentSource,
                 documentStore = app.documentStore,
+                activityEventLogger = app.activityEventLogger,
+                issuanceActivityStore = app.issuanceActivityStore,
             )
         }
 
