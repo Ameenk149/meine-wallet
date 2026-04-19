@@ -1,0 +1,134 @@
+# meineWallet
+
+@startuml
+title EUDI Credential Issuance Flow (Complete with JWT Details)
+
+participant Issuer
+participant Wallet
+
+== 1. Discovery ==
+Wallet -> Issuer: GET /.well-known/openid-credential-issuer
+activate Issuer
+Issuer --> Wallet: Receives credential issuer meta data
+
+note right 
+**Request body:**
+--
+{ // Empty }
+end note
+
+note left #03002e
+
+**Response body:**
+--
+{
+ "issuer": "https://issuer.multipaz.org/issuer",
+  "challenge_endpoint": "https://issuer.multipaz.org/issuer/challenge",
+  "authorization_endpoint": "https://issuer.multipaz.org/issuer/authorize",
+  "token_endpoint": "https://issuer.multipaz.org/issuer/token",
+  "pushed_authorization_request_endpoint": "https://issuer.multipaz.org/issuer/par",
+  "token_endpoint_auth_methods_supported": [
+  "private_key_jwt",
+  "attest_jwt_client_auth"
+  ],
+
+  "response_types_supported": ["code"],
+  "code_challenge_methods_supported": ["S256"],
+  "dpop_signing_alg_values_supported": ["ES256"],
+  "client_attestation_signing_alg_values_supported": ["ES256"],
+  "client_attestation_pop_signing_alg_values_supported": ["ES256"]
+} 
+end note
+deactivate Issuer
+
+== 2. Challenge ==
+Wallet -> Issuer: GET /issuer/challenge
+activate Issuer
+Issuer --> Wallet: 200 OK
+note left #03002e
+
+**Response body:**
+--
+{  "attestation_challenge": "d_GUk2oS4lbAgLed" }
+
+end note
+deactivate Issuer
+
+== 3. Token Request ==
+Wallet -> Issuer: POST /issuer/token
+activate Issuer
+Issuer --> Wallet: 200 OK
+note right 
+
+**Response Headers:**
+--
+
+DPoP: eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7...<trimmed>
+OAuth-Client-Attestation: eyJ0eXAiOiJvYXV0aC1jbGllbnQtYXR0ZXN0YXRpb24rand0IiwiYWxnIjoiRVMyNTYi...<trimmed>
+OAuth-Client-Attestation-PoP: eyJ0eXAiOiJvYXV0aC1jbGllbnQtYXR0ZXN0YXRpb24tcG9wK2p3dCIsImFsZyI6IkVTMjU2In0...<trimmed>
+
+Content-Type: application/x-www-form-urlencoded
+
+end note
+
+
+
+note left #03002e
+
+**Response Body:**
+--
+{
+
+  "authorization_details": "[{\"type\":\"openid_credential\",\"credential_configuration_id\":\"mDL\"}]",
+ "client_id": "urn:uuid:418745b8-78a3-4810-88df-7898aff3ffb4",
+  "grant_type": "urn:ietf:params:oauth:grant-type:pre-authorized_code",
+  "pre-authorized_code": "PkEOV4srnQ_B-zrOlP8ipH3u6VDIIhq8pZiTMsaaws5cc0Lg9rhkDw93z3ffQK_wXoWf",
+  "redirect_uri": "https://apps.multipaz.org/redirect/org.multipaz.samples.wallet.cmp/"
+
+}
+
+end note
+deactivate Issuer
+
+== 4. Credential Issuance ==
+Wallet -> Issuer: POST /issuer/credential
+activate Issuer
+
+note right
+**Request body: **
+--
+Header: { "alg": "ES256", "typ": "openid4vci-proof+jwt" }
+Payload: {
+  "iss": "wallet-client-id",
+  "aud": "https://issuer.multipaz.org",
+  "iat": 1712150400,
+  "nonce": "d_GUk2oS4lbAgLed"
+}
+end note
+
+Issuer -> Issuer: Validate Proof & Token
+
+Issuer --> Wallet: 200 OK
+note left #03002e
+{
+  "format": "mso_mdoc",
+  "credential": "eyJoZWFkZXIi..."
+}
+end note
+
+note over left #03002e
+**Inside the Issued Credential (mDL Example)**
+--
+**Namespace: org.iso.18013.5.1**
+* family_name: "Doe"
+* given_name: "John"
+* birth_date: "1990-01-01"
+* issue_date: "2024-01-01"
+* expiry_date: "2034-01-01"
+* document_number: "123456789"
+* portrait: <base64_data>
+end note
+
+deactivate Issuer
+
+@enduml
