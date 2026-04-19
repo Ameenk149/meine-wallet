@@ -1,5 +1,3 @@
-# meineWallet
-
 @startuml
 title EUDI Credential Issuance Flow (Complete with JWT Details)
 
@@ -17,7 +15,7 @@ note right
 { // Empty }
 end note
 
-note left #03002e
+note left #ADD8E6
 
 **Response body:**
 --
@@ -45,7 +43,7 @@ deactivate Issuer
 Wallet -> Issuer: GET /issuer/challenge
 activate Issuer
 Issuer --> Wallet: 200 OK
-note left #03002e
+note left #ADD8E6
 
 **Response body:**
 --
@@ -73,7 +71,7 @@ end note
 
 
 
-note left #03002e
+note left #ADD8E6
 
 **Response Body:**
 --
@@ -109,14 +107,14 @@ end note
 Issuer -> Issuer: Validate Proof & Token
 
 Issuer --> Wallet: 200 OK
-note left #03002e
+note left #ADD8E6
 {
   "format": "mso_mdoc",
   "credential": "eyJoZWFkZXIi..."
 }
 end note
 
-note over left #03002e
+note over left #ADD8E6
 **Inside the Issued Credential (mDL Example)**
 --
 **Namespace: org.iso.18013.5.1**
@@ -130,5 +128,4 @@ note over left #03002e
 end note
 
 deactivate Issuer
-
 @enduml
