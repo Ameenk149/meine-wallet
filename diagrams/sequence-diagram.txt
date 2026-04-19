@@ -1,131 +1,195 @@
 @startuml
-title EUDI Credential Issuance Flow (Complete with JWT Details)
+title EUDI / OpenID4VCI issuance and OpenID4VP presentment (aligned with Multipaz sample wallet)
 
-participant Issuer
+participant "Credential Issuer\n(OID4VCI metadata)" as CI
+participant "Authorization Server\n(OAuth 2.0 metadata)" as AS
 participant Wallet
+participant Verifier
 
-== 1. Discovery ==
-Wallet -> Issuer: GET /.well-known/openid-credential-issuer
-activate Issuer
-Issuer --> Wallet: Receives credential issuer meta data
-
-note right 
-**Request body:**
---
-{ // Empty }
+== 0. Credential offer (how the wallet starts) ==
+note over Wallet
+The sample app handles **openid-credential-offer://** or **haip-vci://** (see `App.handleUrl`).
+The offer contains the issuer base URL, credential configuration id, and (for pre-authorized flow) a **pre-authorized_code**.
 end note
 
-note left #ADD8E6
+== 1. Credential issuer discovery ==
+Wallet -> CI: GET `/.well-known/openid-credential-issuer` + issuer path suffix\n(e.g. `https://issuer.example/.well-known/openid-credential-issuer/issuer`)
+activate CI
+CI --> Wallet: 200 OK
+note left of CI #ADD8E6
+**Credential issuer metadata (representative fields used by the client)**
+--
+* **credential_issuer** (optional; must match issuer URL when present)
+* **authorization_servers**: URLs of OAuth authorization servers
+* **credential_endpoint**
+* **nonce_endpoint** (optional; used for **c_nonce** before credential proof)
+* **credential_configurations_supported** (per configuration id: **format**, **doctype** / **vct**, **proof_types_supported**, …)
+end note
+deactivate CI
 
-**Response body:**
+== 2. Authorization server discovery ==
+Wallet -> AS: GET `/.well-known/oauth-authorization-server` + path suffix\n(same `wellKnown()` pattern as step 1)
+activate AS
+AS --> Wallet: 200 OK
+note left of AS #ADD8E6
+**OAuth authorization server metadata (subset used by the client)**
+--
+* **issuer**
+* **authorization_endpoint**, **token_endpoint**
+* **pushed_authorization_request_endpoint**
+* **challenge_endpoint** (optional; wallet attestation challenge)
+* **token_endpoint_auth_methods_supported** (e.g. **private_key_jwt**, **attest_jwt_client_auth**)
+* **response_types_supported**, **code_challenge_methods_supported**
+* **dpop_signing_alg_values_supported**
+* **client_attestation_pop_signing_alg_values_supported** (and related attestation algorithm lists)
+end note
+deactivate AS
+
+== 3. Client attestation challenge (when using wallet attestation) ==
+Wallet -> AS: POST **challenge_endpoint** (empty body)
+activate AS
+AS --> Wallet: 200 OK
+note left of AS #ADD8E6
+**Response body**
+--
+{ "attestation_challenge": "<string>" }
+
+Optional **response** header: **DPoP-Nonce**
+end note
+deactivate AS
+
+== 4. Access token (pre-authorized code grant) ==
+Wallet -> AS: POST **token_endpoint**\nContent-Type: **application/x-www-form-urlencoded**
+activate AS
+
+note right of Wallet
+**Request headers (wallet attestation path)**
+--
+* **DPoP**: DPoP proof JWT
+* **OAuth-Client-Attestation**: wallet attestation JWT
+* **OAuth-Client-Attestation-PoP**: attestation PoP JWT (uses **attestation_challenge**)
+
+**Request body (x-www-form-urlencoded)**
+--
+* **grant_type**: `urn:ietf:params:oauth:grant-type:pre-authorized_code`
+* **pre-authorized_code**: from the credential offer
+* **authorization_details**: JSON **array** string, e.g.\n`[{"type":"openid_credential","credential_configuration_id":"<id>"}]`
+* **client_id**
+* **redirect_uri** (sample: `https://apps.multipaz.org/redirect/org.multipaz.samples.wallet.cmp/`)
+* optional **tx_code** if the offer requires a transaction code
+end note
+
+AS --> Wallet: 200 OK
+note left of AS #ADD8E6
+**Response body**
 --
 {
- "issuer": "https://issuer.multipaz.org/issuer",
-  "challenge_endpoint": "https://issuer.multipaz.org/issuer/challenge",
-  "authorization_endpoint": "https://issuer.multipaz.org/issuer/authorize",
-  "token_endpoint": "https://issuer.multipaz.org/issuer/token",
-  "pushed_authorization_request_endpoint": "https://issuer.multipaz.org/issuer/par",
-  "token_endpoint_auth_methods_supported": [
-  "private_key_jwt",
-  "attest_jwt_client_auth"
-  ],
-
-  "response_types_supported": ["code"],
-  "code_challenge_methods_supported": ["S256"],
-  "dpop_signing_alg_values_supported": ["ES256"],
-  "client_attestation_signing_alg_values_supported": ["ES256"],
-  "client_attestation_pop_signing_alg_values_supported": ["ES256"]
-} 
-end note
-deactivate Issuer
-
-== 2. Challenge ==
-Wallet -> Issuer: GET /issuer/challenge
-activate Issuer
-Issuer --> Wallet: 200 OK
-note left #ADD8E6
-
-**Response body:**
---
-{  "attestation_challenge": "d_GUk2oS4lbAgLed" }
-
-end note
-deactivate Issuer
-
-== 3. Token Request ==
-Wallet -> Issuer: POST /issuer/token
-activate Issuer
-Issuer --> Wallet: 200 OK
-note right 
-
-**Response Headers:**
---
-
-DPoP: eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7...<trimmed>
-OAuth-Client-Attestation: eyJ0eXAiOiJvYXV0aC1jbGllbnQtYXR0ZXN0YXRpb24rand0IiwiYWxnIjoiRVMyNTYi...<trimmed>
-OAuth-Client-Attestation-PoP: eyJ0eXAiOiJvYXV0aC1jbGllbnQtYXR0ZXN0YXRpb24tcG9wK2p3dCIsImFsZyI6IkVTMjU2In0...<trimmed>
-
-Content-Type: application/x-www-form-urlencoded
-
-end note
-
-
-
-note left #ADD8E6
-
-**Response Body:**
---
-{
-
-  "authorization_details": "[{\"type\":\"openid_credential\",\"credential_configuration_id\":\"mDL\"}]",
- "client_id": "urn:uuid:418745b8-78a3-4810-88df-7898aff3ffb4",
-  "grant_type": "urn:ietf:params:oauth:grant-type:pre-authorized_code",
-  "pre-authorized_code": "PkEOV4srnQ_B-zrOlP8ipH3u6VDIIhq8pZiTMsaaws5cc0Lg9rhkDw93z3ffQK_wXoWf",
-  "redirect_uri": "https://apps.multipaz.org/redirect/org.multipaz.samples.wallet.cmp/"
-
+  "access_token": "<jwt>",
+  "token_type": "Bearer",
+  "expires_in": <seconds>,
+  "refresh_token": "<optional>"
 }
 
+**Response headers** the client may use: **DPoP-Nonce**, **OAuth-Client-Attestation-Challenge**
 end note
-deactivate Issuer
+deactivate AS
 
-== 4. Credential Issuance ==
-Wallet -> Issuer: POST /issuer/credential
-activate Issuer
-
-note right
-**Request body: **
+== 5. Issuer nonce for credential proof-of-possession ==
+note over Wallet
+Skipped for **keyless** credentials (`getKeyBindingChallenge` is not used).
+end note
+Wallet -> CI: POST **nonce_endpoint** (from credential issuer metadata; empty body)
+activate CI
+CI --> Wallet: 200 OK
+note left of CI #ADD8E6
+**Response body**
 --
-Header: { "alg": "ES256", "typ": "openid4vci-proof+jwt" }
-Payload: {
-  "iss": "wallet-client-id",
-  "aud": "https://issuer.multipaz.org",
-  "iat": 1712150400,
-  "nonce": "d_GUk2oS4lbAgLed"
-}
+{ "c_nonce": "<string>" }
+
+Optional **DPoP-Nonce** response header.
 end note
+deactivate CI
 
-Issuer -> Issuer: Validate Proof & Token
+== 6. Credential issuance ==
+Wallet -> CI: POST **credential_endpoint**\nContent-Type: **application/json**
+activate CI
 
-Issuer --> Wallet: 200 OK
-note left #ADD8E6
+note right of Wallet
+**Request headers**
+--
+* **Authorization**: `DPoP <access_token>`
+* **DPoP**: DPoP proof JWT bound to the credential request
+
+**Request JSON body (shape from `OpenID4VCIProvisioningClient`)**
+--
 {
+  "credential_configuration_id": "<id from offer>",
+  "proofs": {
+    "jwt": [ "<openid4vci-proof+jwt>" ]
+  },
   "format": "mso_mdoc",
-  "credential": "eyJoZWFkZXIi..."
+  "doctype": "org.iso.18013.5.1.mDL"
+}
+
+Omit **proofs** for keyless issuance; use **proofs.attestation** instead of **jwt** when the issuer requires attestation-bound keys.
+
+**openid4vci-proof+jwt** (from `ProvisioningModel.openidProofOfPossession` + `buildJwt`)
+--
+Header: **typ** `openid4vci-proof+jwt`, **alg**, plus **jwk** (includes **kid** = credential key id)
+Payload: **iss** = OAuth **client_id**, **aud** = credential issuer id, **nonce** = **c_nonce**, plus **iat** (and optional **exp**) from `buildJwt`
+end note
+
+CI -> CI: Validate DPoP, access token, proofs, issue credential
+
+CI --> Wallet: 200 OK
+note left of CI #ADD8E6
+**Response JSON**
+--
+{
+  "credentials": [
+    { "credential": "<base64url-encoded CBOR for mdoc, or compact SD-JWT string>" }
+  ]
 }
 end note
 
-note over left #ADD8E6
-**Inside the Issued Credential (mDL Example)**
+note left of CI #FFFACD
+**Inside the issued mDL (illustrative namespace org.iso.18013.5.1)**
 --
-**Namespace: org.iso.18013.5.1**
-* family_name: "Doe"
-* given_name: "John"
-* birth_date: "1990-01-01"
-* issue_date: "2024-01-01"
-* expiry_date: "2034-01-01"
-* document_number: "123456789"
-* portrait: <base64_data>
+Examples only — actual claims depend on issuer: **family_name**, **given_name**, **birth_date**, **issue_date**, **expiry_date**, **document_number**, **portrait**, …
+end note
+deactivate CI
+
+== 7. Presentation request (OpenID4VP URI scheme, sample app) ==
+Verifier -> Wallet: **openid4vp://** or **haip-vp://** link with **request_uri** (and optional **request_uri_method**)
+note right of Verifier
+Verifier-side request is delivered out-of-band (QR / universal link / custom scheme).\nThe wallet loads the **Request Object** from **request_uri** (GET by default).
 end note
 
-deactivate Issuer
+== 8. Fetch signed request object ==
+Wallet -> Verifier: GET or POST **request_uri**\nAccept: **application/oauth-authz-req+jwt**
+activate Verifier
+Verifier --> Wallet: **oauth-authz-req+jwt** (signed; client validates **x5c** / requester key)
+deactivate Verifier
+
+note over Wallet
+JWT claims used by **uriSchemePresentment** / **OpenID4VP** include **response_uri**, **response_mode** (**direct_post** or **direct_post.jwt**), **nonce**, **dcql_query** (not DIF **presentation_definition** in this stack).
+end note
+
+== 9. User consent and response construction ==
+Wallet -> Wallet: User unlocks wallet (biometrics / device auth)
+Wallet -> Wallet: **OpenID4VP.generateResponse** — build **vp_token** (mdoc **DeviceResponse** and/or SD-JWT; optional **mso_mdoc_zk** / ZK path when requested)
+
+== 10. Send presentation to verifier ==
+Wallet -> Verifier: POST **response_uri** (from request JWT)\nContent-Type: **application/x-www-form-urlencoded**\nBody: **response** = JWT or unsecured JWT wrapping the VP payload
+activate Verifier
+
+Verifier -> Verifier: Verify reader / verifier signature, session binding, proofs / disclosures (including ZK when applicable)
+
+Verifier --> Wallet: 200 OK **application/json**\n`{ "redirect_uri": "<browser URL>" }`
+deactivate Verifier
+
+note over Wallet, Verifier
+**Privacy outcome (example):** selective disclosure / ZK can prove predicates (e.g. age threshold) without revealing unrelated attributes; exact claims depend on **dcql_query** and credential type.
+end note
+
 @enduml
