@@ -11,6 +11,8 @@
     <string name="more_options">More options</string>
     <string name="collapse">Collapse</string>
     <string name="expand">Expand</string>
+    <string name="copy">Copy</string>
+    <string name="copy_to_clipboard">Copy to clipboard</string>
 
     <!-- WalletScreen -->
     <string name="no_documents_added">No documents added yet</string>

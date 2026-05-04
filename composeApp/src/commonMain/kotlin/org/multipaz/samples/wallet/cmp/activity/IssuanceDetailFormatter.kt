@@ -58,3 +58,16 @@ fun IssuanceActivityRecord.issuanceStateSectionText(): String = buildString {
 /** Body for a single collapsible when no HTTP trace was captured. */
 fun IssuanceActivityRecord.issuanceHttpEmptySectionText(): String =
     "(no HTTP captured for this session — try a new issuance after updating the app)"
+
+/** Full issuance detail for “copy entire activity” (matches on-screen sections). */
+fun IssuanceActivityRecord.fullDetailCopyText(): String = buildString {
+    appendLine(issuanceSummarySectionText().trimEnd())
+    appendLine()
+    appendLine(issuanceStateSectionText().trimEnd())
+    appendLine()
+    if (httpTrace.isBlank()) {
+        appendLine(issuanceHttpEmptySectionText().trimEnd())
+    } else {
+        append(httpTrace.trimEnd())
+    }
+}
