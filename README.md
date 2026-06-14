@@ -1,33 +1,237 @@
 # meineWallet
 
-Kotlin Multiplatform sample wallet based on [Multipaz](https://www.multipaz.org/). It demonstrates **OpenID4VCI** credential issuance, **OpenID4VP** presentation (including optional **ISO mdoc ZK** proofs on Android), NFC **mdoc** engagement, and platform integrations (Android Credential Manager, iOS Identity Document Provider).
+**meineWallet** is a Kotlin Multiplatform (Android + iOS) digital identity wallet built on [Multipaz](https://www.multipaz.org/). It is the prototype artifact for a master's thesis on **privacy-preserving, ARF-aligned credential presentation using Zero-Knowledge Proofs (ZKPs)**.
 
-This repository is used for thesis work; the implementation follows the Multipaz libraries (see `gradle/libs.versions.toml` for versions).
+It demonstrates an end-to-end EUDI-style flow:
 
-## Requirements
+- **OpenID4VCI** credential issuance (pre-authorized code grant)
+- **OpenID4VP** presentation (DCQL, OpenID4VP draft 29)
+- **ISO mdoc Zero-Knowledge proofs** via Google's **Longfellow** ZK system (`mso_mdoc_zk`) — Android only
+- **NFC mdoc** proximity engagement (ISO/IEC 18013-5, HCE)
+- **W3C Digital Credentials API** through Android Credential Manager and the iOS Identity Document Provider
+- **RQ1 performance benchmarking** of ZKP operations, surfaced live in the app's Activity / Logs screens
 
-- **JDK 17** (Gradle uses JVM toolchain 17)
-- **Android Studio** or Android SDK for the Android target (`minSdk` in version catalog)
-- **Xcode** for iOS targets if you build the `iosApp` / Kotlin framework
+> This is a research prototype, not a production wallet. Trust anchors are test/self-signed and the issuer/verifier are mock services on the Multipaz test infrastructure.
 
-## Project layout
+---
 
-| Path | Role |
-|------|------|
-| `composeApp/` | Shared Compose UI, OpenID4VCI provisioning, presentment wiring |
-| `iosApp/` | iOS shell, SwiftUI, Identity Document Provider extension |
-| `documentation/flows/` | PlantUML sequence sources (`.txt`) and rendered **PNG** diagrams |
+## Table of contents
 
-## Build
+1. [Tech stack](#tech-stack)
+2. [Repository layout](#repository-layout)
+3. [Prerequisites](#prerequisites)
+4. [Quick start (Android)](#quick-start-android)
+5. [Quick start (iOS)](#quick-start-ios)
+6. [How to use the app](#how-to-use-the-app)
+7. [Architecture overview](#architecture-overview)
+8. [Zero-Knowledge proofs (Longfellow)](#zero-knowledge-proofs-longfellow)
+9. [RQ1 benchmarking](#rq1-benchmarking)
+10. [Configuration reference](#configuration-reference)
+11. [Troubleshooting](#troubleshooting)
+12. [Protocol flows (PlantUML)](#protocol-flows-plantuml)
+
+---
+
+## Tech stack
+
+| Area | Choice | Version |
+|------|--------|---------|
+| Language | Kotlin (Multiplatform) | `2.3.10` |
+| UI | Compose Multiplatform | `1.10.1` |
+| Build | Gradle (wrapper) / AGP | `9.1.0` / `8.13.0` |
+| JVM toolchain | JDK | `17` |
+| Identity stack | Multipaz (`multipaz`, `-doctypes`, `-dcapi`, `-compose`, `-longfellow`) | `0.98.0` |
+| Networking | Ktor client | `3.4.0` |
+| Navigation | Navigation Compose | `2.9.2` |
+| Images | Coil | `3.3.0` |
+| Android SDK | `minSdk` / `target` / `compile` | `29` / `36` / `36` |
+| iOS targets | `iosX64`, `iosArm64`, `iosSimulatorArm64` (static framework `meineWallet`) | — |
+
+All versions are centralized in [`gradle/libs.versions.toml`](gradle/libs.versions.toml).
+
+> **Note:** the Android Kotlin compiler runs with `allWarningsAsErrors = true` — any compiler warning fails the build.
+
+---
+
+## Repository layout
+
+```
+meineWallet/
+├── composeApp/                       # Kotlin Multiplatform module (the app)
+│   └── src/
+│       ├── commonMain/               # Shared code (UI, navigation, provisioning, benchmarking)
+│       │   ├── kotlin/.../cmp/
+│       │   │   ├── App.kt            # Application singleton: storage, document store, trust, presentment
+│       │   │   ├── Route.kt          # Type-safe navigation routes
+│       │   │   ├── ProvisioningSupport.kt   # OpenID4VCI client backend + wallet attestation keys
+│       │   │   ├── navhost/          # AppNavHost + WalletNavHost
+│       │   │   ├── ui/               # Compose screens (Wallet, Document, Activity, Logs, ...)
+│       │   │   ├── activity/         # Activity event + issuance history formatting
+│       │   │   ├── benchmark/        # RQ1 ZKP instrumentation (proof time, memory, CPU, VP size)
+│       │   │   └── logging/          # In-app log collector
+│       │   ├── androidMain/          # Android entry points + Longfellow ZK factory
+│       │   │   ├── .../MainActivity.kt
+│       │   │   ├── .../CredentialManagerPresentmentActivity.kt
+│       │   │   ├── .../UriSchemePresentmentActivity.kt
+│       │   │   ├── .../NdefService.kt          # NFC HCE engagement
+│       │   │   ├── .../ZkSystemRepositoryFactory.android.kt   # registers Longfellow
+│       │   │   └── assets/longfellow-libzk-v1/ # ZK circuit files (Android)
+│       │   ├── iosMain/              # iOS entry (MainViewController) + ZK factory (returns null)
+│       │   └── commonTest/
+│       └── build.gradle.kts          # KMP + Android app configuration
+├── iosApp/                           # Xcode project (SwiftUI shell)
+│   ├── iosApp/                       # ContentView.swift -> Compose MainViewController
+│   ├── DocumentProviderExtension/    # iOS Identity Document Provider extension
+│   └── Configuration/Config.xcconfig # TEAM_ID, bundle id, version
+├── documentation/flows/              # PlantUML sources (.txt) + rendered PNG diagrams
+├── gradle/libs.versions.toml         # Version catalog
+└── settings.gradle.kts
+```
+
+---
+
+## Prerequisites
+
+| Tool | Required for | Notes |
+|------|--------------|-------|
+| **JDK 17** | All builds | Gradle uses JVM toolchain 17. Verify with `java -version`. |
+| **Android Studio** (latest stable) | Android build/run | Bundled Android SDK; install platform **API 36** + build tools. |
+| **Android device or emulator** | Running the app | Issuance works on an emulator. **ZKP presentation and NFC require a physical Android device** (Longfellow runs native code; NFC needs hardware). |
+| **Xcode 15+** | iOS build/run | macOS only. Needed for the `iosApp` target / Kotlin framework. |
+| **A network connection** | First build | Gradle downloads the Gradle 9.1.0 distribution and dependencies from Google Maven / Maven Central. |
+
+You do **not** need to install Gradle manually — use the bundled `./gradlew` wrapper.
+
+---
+
+## Quick start (Android)
 
 From the repository root:
 
 ```bash
-./gradlew :composeApp:assembleDebug          # Android debug APK
-./gradlew :composeApp:compileKotlinIosArm64  # example iOS compilation
+# 1. Build a debug APK
+./gradlew :composeApp:assembleDebug
+
+# 2. Install onto a connected device / running emulator
+./gradlew :composeApp:installDebug
+
+# 3. (optional) build + install + launch in one step from Android Studio:
+#    open the project, select the `composeApp` run configuration, press Run.
 ```
 
-Use Android Studio **Run** for the `composeApp` configuration, or open `iosApp/iosApp.xcodeproj` for the iOS app.
+The debug APK is written to:
+
+```
+composeApp/build/outputs/apk/debug/composeApp-debug.apk
+```
+
+**Recommended:** open the project in **Android Studio**, let it sync Gradle, then Run on a physical device for the full ZKP + NFC experience.
+
+---
+
+## Quick start (iOS)
+
+> macOS + Xcode required. ZKP presentation is **not** available on iOS in this prototype (`createZkSystemRepository()` returns `null`); issuance and standard presentation work.
+
+1. Set your Apple developer **Team ID** in [`iosApp/Configuration/Config.xcconfig`](iosApp/Configuration/Config.xcconfig):
+
+   ```
+   TEAM_ID=YOURTEAMID
+   ```
+
+2. Open the Xcode project:
+
+   ```bash
+   open iosApp/iosApp.xcodeproj
+   ```
+
+3. Select the `iosApp` scheme and a simulator or device, then **Run**. Xcode invokes Gradle to build the shared `meineWallet` framework automatically.
+
+To compile only the shared framework from the command line:
+
+```bash
+./gradlew :composeApp:compileKotlinIosArm64        # device arch
+./gradlew :composeApp:compileKotlinIosSimulatorArm64
+```
+
+---
+
+## How to use the app
+
+1. **Add a credential (OpenID4VCI).** Obtain a credential offer (e.g. from [`issuer.multipaz.org`](https://issuer.multipaz.org)) as an `openid-credential-offer://` / `haip-vci://` link or QR. Opening it routes the app into the provisioning flow and stores the issued mDL.
+2. **View / manage documents.** The wallet list shows stored credentials; tap one for details, claims, and removal.
+3. **Present a credential (OpenID4VP).** Trigger an `openid4vp://` / `haip-vp://` request from a verifier (e.g. [`verifier.multipaz.org`](https://verifier.multipaz.org)). For a **ZK** request the verifier asks for `mso_mdoc_zk` and the wallet generates a Longfellow proof.
+4. **NFC proximity.** Hold the device to a compatible mdoc reader to engage over NFC (HCE via `NdefService`).
+5. **Activity & Logs.** The **Activity** screen lists presentation/issuance events; each ZKP presentation shows **RQ1 benchmark metrics**, and **View app logs** streams debug traces (`OpenID4VCI-HTTP`, `ZKP-Benchmark`).
+
+---
+
+## Architecture overview
+
+- **`App`** (`App.kt`) is the application singleton. On `init()` it wires up: encrypted `Storage`, `SecureArea`, `DocumentStore`, the `DocumentTypeRepository` (mDL, PID, PhotoID, AgeVerification, …), a `TrustManager` seeded with test reader root CAs, the `SimplePresentmentSource` (with the optional `ZkSystemRepository`), and the `ProvisioningModel`.
+- **Navigation** is two-tier and type-safe (`Route.kt`):
+  - `AppNavHost` switches between **Wallet** and **Provisioning** based on `ProvisioningModel` state.
+  - `WalletNavHost` covers the wallet list, document details/claims, the activity history, event/issuance detail, and app logs.
+- **Platform entry points:**
+  - **Android:** `MainActivity` (main UI + deep-link handling), `UriSchemePresentmentActivity` (OpenID4VP URI scheme), `CredentialManagerPresentmentActivity` (W3C DC API), `NdefService` (NFC HCE).
+  - **iOS:** `ContentView.swift` hosts the Compose `MainViewController`; a `DocumentProviderExtension` integrates with the system.
+- **`expect`/`actual`** boundaries (`AppPlatform`, `ZkSystemRepositoryFactory`, `benchmark/BenchmarkPlatform`) provide platform-specific storage, ZK availability, and resource sampling.
+
+---
+
+## Zero-Knowledge proofs (Longfellow)
+
+- ZK is offered only when the verifier requests the `mso_mdoc_zk` format and advertises a matching `zk_system_type`.
+- **Android** registers `LongfellowZkSystem` in `ZkSystemRepositoryFactory.android.kt`, loading circuit files from `composeApp/src/androidMain/assets/longfellow-libzk-v1/`.
+- **iOS** returns `null` from `createZkSystemRepository()`, so ZK presentation is disabled on that platform in this prototype.
+- The wallet selects the first `(ZkSystem, ZkSystemSpec)` pair that matches the document and requested claims, generates a `ZkDocument`, and embeds it in the `vp_token`. See the [ZK protocol flow](#wallet--verifier-with-zk-mso_mdoc_zk) below.
+
+Verification happens on the verifier side (a Multipaz verifier such as `verifier.multipaz.org`, or a locally run `multipaz-verifier-server`), not in this wallet.
+
+---
+
+## RQ1 benchmarking
+
+The wallet instruments ZKP **proof generation** on Android and surfaces the thesis RQ1 metrics in-app (Activity event detail, Activity list hint, and **View app logs**):
+
+| Metric | Instrument | Where shown |
+|--------|------------|-------------|
+| Proof generation time | `SystemClock.elapsedRealtimeNanos()` | Activity detail, logs card, `ZKP-Benchmark` log |
+| Peak memory usage (KB) | `Debug.MemoryInfo` (50 ms sampling) | Activity detail, logs card |
+| CPU utilisation (%) | `/proc/self/stat` (50 ms sampling) | Activity detail, logs card |
+| VP token payload size | `len(base64url.decode(vp_token))` | Activity detail, logs card |
+
+Proof **verification** time is measured on the verifier server and is intentionally excluded from the wallet-side numbers. Instrumentation lives in `composeApp/src/commonMain/kotlin/org/multipaz/samples/wallet/cmp/benchmark/` (`InstrumentedZkSystem`, `ZkpBenchmarkStore`, `BenchmarkPlatform`).
+
+---
+
+## Configuration reference
+
+| What | Value | Where |
+|------|-------|-------|
+| Android application id | `org.multipaz.samples.wallet.cmp` | `composeApp/build.gradle.kts` |
+| App link server | `https://apps.multipaz.org` | `ProvisioningSupport.kt` + `AndroidManifest.xml` |
+| Redirect path | `/redirect/org.multipaz.samples.wallet.cmp/` | `AndroidManifest.xml` (`autoVerify` app link) |
+| OID4VCI offer schemes | `openid-credential-offer://`, `haip-vci://` | `AndroidManifest.xml`, `App.handleUrl` |
+| OID4VP request schemes | `openid4vp://`, `haip-vp://` | `AndroidManifest.xml`, `UriSchemePresentmentActivity` |
+| iOS bundle id / team | `Config.xcconfig` | set `TEAM_ID` before building |
+
+App-link auto-verification requires a matching `.well-known/assetlinks.json` on the app-link server; without it, deep-link redirect handling for issuance may not auto-open the app. If you change the app-link domain, update **both** `ProvisioningSupport` and `AndroidManifest.xml`.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause / fix |
+|---------|--------------------|
+| Gradle fails downloading `gradle-9.1.0-bin.zip` | First build needs network access to `services.gradle.org`. Retry online, or pre-seed the wrapper distribution. |
+| Build fails on a compiler **warning** | `allWarningsAsErrors = true` — fix the warning (or suppress it as the codebase does for `expect/actual` beta warnings). |
+| ZKP option never appears | ZK is Android-only and requires the verifier to request `mso_mdoc_zk`; ensure Longfellow circuits exist under `assets/longfellow-libzk-v1/`. |
+| NFC engagement does nothing | Use a physical NFC-capable Android device; NFC is unavailable on emulators. |
+| iOS build fails on signing | Set `TEAM_ID` in `Config.xcconfig` and select a valid signing team in Xcode. |
+| Deep-link issuance doesn't auto-open | App-link verification needs `assetlinks.json` on the configured server. |
+
+---
 
 ## Protocol flows (PlantUML)
 
@@ -443,4 +647,4 @@ Committed PNGs live under `documentation/flows/images/`.
 
 ## License
 
-See project and upstream Multipaz licensing as applicable.
+This repository is a master's thesis research artifact. It builds on the [Multipaz](https://www.multipaz.org/) libraries — see upstream Multipaz licensing for the dependencies. Apply your institution's/repository's licensing terms to the original code in this project as applicable.
