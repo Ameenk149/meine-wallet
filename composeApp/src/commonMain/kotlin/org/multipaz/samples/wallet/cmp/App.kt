@@ -63,6 +63,7 @@ import org.multipaz.provisioning.DocumentProvisioningHandler
 import org.multipaz.provisioning.ProvisioningModel
 import kotlinx.coroutines.flow.collect
 import org.multipaz.samples.wallet.cmp.activity.IssuanceActivityStore
+import org.multipaz.samples.wallet.cmp.benchmark.logVpTokenPayloadForEvent
 import org.multipaz.samples.wallet.cmp.logging.AppLogCollector
 import org.multipaz.samples.wallet.cmp.navhost.AppNavHost
 import org.multipaz.securearea.SecureArea
@@ -292,6 +293,12 @@ class App() {
             CoroutineScope(Dispatchers.Default).launch {
                 documentStore.eventFlow.collect { event ->
                     issuanceActivityStore.onDocumentEvent(event)
+                }
+            }
+            CoroutineScope(Dispatchers.Default).launch {
+                activityEventLogger.eventFlow.collect {
+                    val latest = activityEventLogger.getEvents().lastOrNull() ?: return@collect
+                    logVpTokenPayloadForEvent(latest)
                 }
             }
 

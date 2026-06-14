@@ -108,6 +108,7 @@ fun ActivityScreen(
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
+                ZkpLastProofGenerationCard()
                 ActivityOpenLogsCard(onOpenLogs = onOpenLogs)
                 Text(
                     text = stringResource(Res.string.activity_empty_hint),
@@ -123,6 +124,9 @@ fun ActivityScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                item(key = "zkp_last_proof") {
+                    ZkpLastProofGenerationCard()
+                }
                 item(key = "open_logs") {
                     ActivityOpenLogsCard(onOpenLogs = onOpenLogs)
                 }

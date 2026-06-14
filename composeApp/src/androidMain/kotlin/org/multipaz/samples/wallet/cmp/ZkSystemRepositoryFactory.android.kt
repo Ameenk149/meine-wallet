@@ -4,6 +4,7 @@ import kotlinx.io.bytestring.ByteString
 import org.multipaz.context.applicationContext
 import org.multipaz.mdoc.zkp.ZkSystemRepository
 import org.multipaz.mdoc.zkp.longfellow.LongfellowZkSystem
+import org.multipaz.samples.wallet.cmp.benchmark.InstrumentedZkSystem
 import org.multipaz.util.Logger
 
 private const val TAG = "ZkSystemRepositoryFactory"
@@ -38,7 +39,7 @@ actual fun createZkSystemRepository(): ZkSystemRepository? {
             Logger.w(TAG, "No Longfellow circuits loaded; ZKP presentment disabled")
             null
         } else {
-            ZkSystemRepository().add(longfellow)
+            ZkSystemRepository().add(InstrumentedZkSystem(longfellow))
         }
     } catch (e: Throwable) {
         Logger.w(TAG, "Failed to initialize Longfellow ZK", e)

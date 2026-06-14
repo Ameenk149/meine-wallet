@@ -11,6 +11,10 @@ import org.multipaz.eventlogger.EventPresentmentDigitalCredentialsOpenID4VP
 import org.multipaz.eventlogger.EventPresentmentIso18013AnnexA
 import org.multipaz.eventlogger.EventPresentmentIso18013Proximity
 import org.multipaz.eventlogger.EventPresentmentUriSchemeOpenID4VP
+import org.multipaz.samples.wallet.cmp.benchmark.ZkpBenchmarkStore
+import org.multipaz.samples.wallet.cmp.benchmark.formatZkpBenchmarkListHint
+import org.multipaz.samples.wallet.cmp.benchmark.formatZkpBenchmarkSection
+import org.multipaz.samples.wallet.cmp.benchmark.vpTokenPayloadBytesForEvent
 
 /** Keeps each heavy section bounded so building the full detail string does not OOM the app. */
 private const val MAX_DETAIL_SECTION_CHARS = 56_000
@@ -68,7 +72,15 @@ fun Event.summaryTitle(): String = when (this) {
 fun Event.summarySubtitle(): String {
     val p = this as? EventPresentment ?: return timestamp.toString()
     val name = p.presentmentData.requesterName ?: "Unknown requester"
-    return "$name · $timestamp"
+    val benchmarkHint = formatZkpBenchmarkListHint(
+        generationSnapshots = ZkpBenchmarkStore.snapshotsForPresentation(this),
+        vpTokenBytes = vpTokenPayloadBytesForEvent(this),
+    )
+    return if (benchmarkHint != null) {
+        "$name · $benchmarkHint · $timestamp"
+    } else {
+        "$name · $timestamp"
+    }
 }
 
 fun Event.formatDetailText(): String = when (this) {
@@ -88,6 +100,7 @@ fun Event.formatDetailText(): String = when (this) {
         appendLine()
         appendLine("=== Session transcript (CBOR diagnostic) ===")
         appendLine(sessionTranscript.toDiagnosticsString())
+        appendZkpBenchmarkSection(this@formatDetailText)
     }
     is EventPresentmentIso18013AnnexA -> buildString {
         appendLine("=== Overview ===")
@@ -111,6 +124,7 @@ fun Event.formatDetailText(): String = when (this) {
         appendLine()
         appendLine("=== Reader engagement (CBOR diagnostic) ===")
         appendLine(readerEngagement.toDiagnosticsString())
+        appendZkpBenchmarkSection(this@formatDetailText)
     }
     is EventPresentmentUriSchemeOpenID4VP -> buildString {
         appendLine("=== Overview ===")
@@ -129,6 +143,7 @@ fun Event.formatDetailText(): String = when (this) {
         appendLine()
         appendLine("=== VP token ===")
         appendLine(vpToken.elideDetailSection())
+        appendZkpBenchmarkSection(this@formatDetailText)
     }
     is EventPresentmentDigitalCredentialsOpenID4VP -> buildString {
         appendLine("=== Overview ===")
@@ -149,6 +164,7 @@ fun Event.formatDetailText(): String = when (this) {
         appendLine()
         appendLine("=== VP token ===")
         appendLine(vpToken.elideDetailSection())
+        appendZkpBenchmarkSection(this@formatDetailText)
     }
     is EventPresentmentDigitalCredentialsMdocApi -> buildString {
         appendLine("=== Overview ===")
@@ -169,7 +185,18 @@ fun Event.formatDetailText(): String = when (this) {
         appendLine()
         appendLine("=== Device response (CBOR diagnostic) ===")
         appendLine(deviceResponse.toDiagnosticsString())
+        appendZkpBenchmarkSection(this@formatDetailText)
     }
+}
+
+private fun Appendable.appendZkpBenchmarkSection(event: Event) {
+    val section = formatZkpBenchmarkSection(
+        event = event,
+        generationSnapshots = ZkpBenchmarkStore.snapshotsForPresentation(event),
+        vpTokenBytes = vpTokenPayloadBytesForEvent(event),
+    ) ?: return
+    appendLine()
+    appendLine(section)
 }
 
 /** Caps full detail string size before showing it in a single scrollable text block. */

@@ -1,5 +1,6 @@
 package org.multipaz.samples.wallet.cmp.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -66,7 +67,11 @@ fun AppLogsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            item(key = "zkp_last_proof") {
+                ZkpLastProofGenerationCard()
+            }
             items(
                 count = lines.size,
                 key = { index -> index to lines[index] },
