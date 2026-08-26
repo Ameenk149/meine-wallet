@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.CompletableDeferred
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -33,7 +34,9 @@ fun ProvisioningScreen(
             provisioningModel = provisioningModel,
             waitForRedirectLinkInvocation = { state ->
                 provisioningSupport.waitForAppLinkInvocation(state)
-            }
+            },
+            clientPreferences = CompletableDeferred(provisioningSupport.preferences),
+            backend = CompletableDeferred(provisioningSupport.backend),
         )
 
         Spacer(Modifier.padding(12.dp))

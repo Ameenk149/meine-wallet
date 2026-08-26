@@ -50,7 +50,9 @@ import meinewallet.composeapp.generated.resources.no_documents_added
 import meinewallet.composeapp.generated.resources.activity
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
-import org.multipaz.compose.document.DocumentCarousel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import org.multipaz.compose.cards.CardCarousel
 import org.multipaz.compose.document.DocumentInfo
 import org.multipaz.compose.document.DocumentModel
 import org.multipaz.samples.wallet.cmp.SettingsModel
@@ -65,6 +67,7 @@ fun WalletScreen(
     settingsModel: SettingsModel,
     onDocumentSelected: (DocumentInfo) -> Unit,
     onActivity: () -> Unit = {},
+    onCreateTestMdl: () -> Unit = {},
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -89,6 +92,9 @@ fun WalletScreen(
                     )
                 },
                 actions = {
+                    TextButton(onClick = onCreateTestMdl) {
+                        Text("Test mDL")
+                    }
                     TextButton(onClick = onActivity) {
                         Text(stringResource(Res.string.activity))
                     }
@@ -103,12 +109,16 @@ fun WalletScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            DocumentCarousel(
+            val documentInfos by documentModel.documentInfos.collectAsState()
+            CardCarousel(
                 modifier = Modifier.fillMaxWidth(),
-                documentModel = documentModel,
-                initialDocumentId = settingsModel.currentlyFocusedDocumentId.value,
+                cardInfos = documentInfos,
+                initialCardInfo = documentInfos.find {
+                    it.identifier == settingsModel.currentlyFocusedDocumentId.value
+                },
                 allowReordering = true,
-                onDocumentReordered = { documentInfo, oldPos, newPos ->
+                onCardReordered = { cardInfo, oldPos, newPos ->
+                    val documentInfo = cardInfo as DocumentInfo
                     coroutineScope.launch {
                         try {
                             documentModel.setDocumentPosition(
@@ -120,11 +130,11 @@ fun WalletScreen(
                         }
                     }
                 },
-                onDocumentFocused = { documentInfo ->
-                    settingsModel.currentlyFocusedDocumentId.value = documentInfo.document.identifier
+                onCardFocused = { cardInfo ->
+                    settingsModel.currentlyFocusedDocumentId.value = cardInfo.identifier
                 },
-                selectedDocumentInfo = { documentInfo, index, total ->
-                    if (documentInfo != null) {
+                selectedCardInfo = { cardInfo, index, total ->
+                    if (cardInfo != null) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center,
@@ -155,10 +165,10 @@ fun WalletScreen(
                         )
                     }
                 },
-                onDocumentClicked = { documentInfo ->
-                    onDocumentSelected(documentInfo)
+                onCardClicked = { cardInfo ->
+                    onDocumentSelected(cardInfo as DocumentInfo)
                 },
-                emptyDocumentContent = {
+                emptyCardContent = {
                     EmptyWalletState()
                 },
             )

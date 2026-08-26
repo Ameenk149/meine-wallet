@@ -21,6 +21,8 @@ import coil3.network.ktor3.KtorNetworkFetcherFactory
 import io.ktor.client.HttpClient
 import io.ktor.http.Url
 import io.ktor.http.protocolWithAuthority
+import meinewallet.composeapp.generated.resources.Res
+import meinewallet.composeapp.generated.resources.card_generic
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -30,7 +32,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import meinewallet.composeapp.generated.resources.Res
 import meinewallet.composeapp.generated.resources.initializing
 import org.jetbrains.compose.resources.stringResource
 import org.multipaz.compose.branding.Branding
@@ -45,14 +46,14 @@ import org.multipaz.eventlogger.SimpleEventLogger
 import org.multipaz.documenttype.DocumentTypeRepository
 import org.multipaz.documenttype.knowntypes.AgeVerification
 import org.multipaz.documenttype.knowntypes.DrivingLicense
-import org.multipaz.documenttype.knowntypes.EUCertificateOfResidence
+import org.multipaz.utopia.knowntypes.EUCertificateOfResidence
 import org.multipaz.documenttype.knowntypes.EUPersonalID
-import org.multipaz.documenttype.knowntypes.GermanPersonalID
+import org.multipaz.utopia.knowntypes.GermanPersonalID
 import org.multipaz.documenttype.knowntypes.IDPass
-import org.multipaz.documenttype.knowntypes.Loyalty
+import org.multipaz.utopia.knowntypes.Loyalty
 import org.multipaz.documenttype.knowntypes.PhotoID
-import org.multipaz.documenttype.knowntypes.UtopiaMovieTicket
-import org.multipaz.documenttype.knowntypes.UtopiaNaturalization
+import org.multipaz.utopia.knowntypes.UtopiaMovieTicket
+import org.multipaz.utopia.knowntypes.UtopiaNaturalization
 import org.multipaz.documenttype.knowntypes.VaccinationDocument
 import org.multipaz.documenttype.knowntypes.VehicleRegistration
 import org.multipaz.mdoc.zkp.ZkSystemRepository
@@ -231,9 +232,9 @@ class App() {
                     return@SimplePresentmentSource null
                 },
                 preferSignatureToKeyAgreement = true,
-                domainMdocSignature = "mdoc_user_auth",
-                domainKeyBoundSdJwt = "sdjwt_user_auth",
-                domainKeylessSdJwt = "sdjwt_keyless"
+                domainsMdocSignature = listOf("mdoc_user_auth"),
+                domainsKeyBoundSdJwt = listOf("sdjwt_user_auth"),
+                domainsKeylessSdJwt = listOf("sdjwt_keyless")
             )
 
             val digitalCredentials = DigitalCredentials.getDefault()
@@ -356,6 +357,30 @@ class App() {
                 app = this,
                 imageLoader = imageLoader,
             )
+        }
+    }
+
+    /**
+     * Issues an mDL locally (self-generated IACA/DS). See [issueLocalTestMdl] for
+     * why this exists: hosted-issuer credentials currently break Longfellow ZKP.
+     */
+    @OptIn(org.jetbrains.compose.resources.ExperimentalResourceApi::class)
+    fun createLocalTestMdl() {
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                val cardArt = org.jetbrains.compose.resources.getDrawableResourceBytes(
+                    org.jetbrains.compose.resources.getSystemResourceEnvironment(),
+                    Res.drawable.card_generic,
+                )
+                val document = issueLocalTestMdl(
+                    documentStore = documentStore,
+                    secureArea = secureArea,
+                    cardArt = kotlinx.io.bytestring.ByteString(cardArt),
+                )
+                Logger.i(TAG, "Local test mDL issued: ${document.identifier}")
+            } catch (e: Throwable) {
+                Logger.e(TAG, "Local test mDL issuance failed", e)
+            }
         }
     }
 

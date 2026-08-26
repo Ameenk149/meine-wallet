@@ -67,6 +67,7 @@ fun Event.summaryTitle(): String = when (this) {
     is EventPresentmentUriSchemeOpenID4VP -> "Presentation · OpenID4VP (URI)"
     is EventPresentmentDigitalCredentialsOpenID4VP -> "Presentation · OpenID4VP (Digital Credentials API)"
     is EventPresentmentDigitalCredentialsMdocApi -> "Presentation · mdoc (Digital Credentials API)"
+    else -> this::class.simpleName ?: "Event"
 }
 
 fun Event.summarySubtitle(): String {
@@ -133,7 +134,7 @@ fun Event.formatDetailText(): String = when (this) {
         appendLine("URI: ${uri.elideDetailSection()}")
         appendLine("App ID: ${appId ?: "—"}")
         appendLine("Origin: ${origin ?: "—"}")
-        appendLine("Redirect URI: ${redirectUri.elideDetailSection()}")
+        appendLine("Redirect URI: ${redirectUri?.elideDetailSection() ?: "—"}")
         appendLine()
         appendLine("=== Requester / request summary ===")
         appendLine(presentmentData.tryFormatOverview())
@@ -186,6 +187,11 @@ fun Event.formatDetailText(): String = when (this) {
         appendLine("=== Device response (CBOR diagnostic) ===")
         appendLine(deviceResponse.toDiagnosticsString())
         appendZkpBenchmarkSection(this@formatDetailText)
+    }
+    else -> buildString {
+        appendLine("=== Overview ===")
+        appendLine("Type: ${this@formatDetailText::class.simpleName}")
+        appendLine("Time: $timestamp")
     }
 }
 

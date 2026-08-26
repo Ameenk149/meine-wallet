@@ -24,7 +24,7 @@ fun AppNavHost(
     LaunchedEffect(provisioningState) {
         val provisioningActive =
             provisioningState != ProvisioningModel.Idle &&
-                provisioningState != ProvisioningModel.CredentialsIssued
+                provisioningState !is ProvisioningModel.CredentialsIssued
 
         val targetRoute: AppRoute = if (provisioningActive) {
             AppRoute.Provisioning
@@ -51,6 +51,7 @@ fun AppNavHost(
                 documentStore = app.documentStore,
                 activityEventLogger = app.activityEventLogger,
                 issuanceActivityStore = app.issuanceActivityStore,
+                onCreateTestMdl = { app.createLocalTestMdl() },
             )
         }
 
