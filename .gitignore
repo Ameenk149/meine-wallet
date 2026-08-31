@@ -17,3 +17,7 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 documentation/flows/plantuml.jar
+
+# Release signing (do not commit)
+release.keystore
+keystore.properties

@@ -34,6 +34,7 @@ fun WalletNavHost(
     documentStore: DocumentStore,
     activityEventLogger: SimpleEventLogger,
     issuanceActivityStore: IssuanceActivityStore,
+    onCreateTestMdl: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val coroutineScope = rememberCoroutineScope()
@@ -94,6 +95,7 @@ fun WalletNavHost(
                     )
                 },
                 onActivity = { navController.navigate(WalletRoute.Activity) },
+                onCreateTestMdl = onCreateTestMdl,
             )
         }
 

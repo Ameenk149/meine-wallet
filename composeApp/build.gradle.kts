@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -65,6 +66,7 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.multipaz)
             implementation(libs.multipaz.doctypes)
+            implementation(libs.multipaz.utopia)
             implementation(libs.multipaz.dcapi)
             implementation(libs.multipaz.compose)
             implementation(libs.coil.compose)
@@ -95,9 +97,27 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += listOf("/META-INF/versions/9/OSGI-INF/MANIFEST.MF")        }
     }
+    signingConfigs {
+        // Signing material lives in <repo>/keystore.properties + release.keystore
+        // (both gitignored). Release builds fall back to the debug key when absent.
+        val keystorePropertiesFile = rootProject.file("keystore.properties")
+        if (keystorePropertiesFile.exists()) {
+            val keystoreProperties = Properties().apply {
+                keystorePropertiesFile.inputStream().use { load(it) }
+            }
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {

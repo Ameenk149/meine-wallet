@@ -18,7 +18,7 @@ kotlinx-io = "0.8.2"
 kotlinx-datetime = "0.7.1"
 kotlinx-serialization = "1.10.0"
 coil = "3.3.0"
-multipaz = "0.98.0"
+multipaz = "0.99.0"
 ktor = "3.4.0"
 navigation-compose = "2.9.2"
 
@@ -46,6 +46,7 @@ coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" 
 coil-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 multipaz = { group = "org.multipaz", name = "multipaz", version.ref = "multipaz" }
 multipaz-doctypes = { group = "org.multipaz", name = "multipaz-doctypes", version.ref = "multipaz" }
+multipaz-utopia = { group = "org.multipaz", name = "multipaz-utopia", version.ref = "multipaz" }
 multipaz-dcapi = { group = "org.multipaz", name = "multipaz-dcapi", version.ref = "multipaz" }
 multipaz-compose = { group = "org.multipaz", name = "multipaz-compose", version.ref = "multipaz" }
 multipaz-longfellow = { group = "org.multipaz", name = "multipaz-longfellow", version.ref = "multipaz" }
